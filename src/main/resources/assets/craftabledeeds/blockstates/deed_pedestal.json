@@ -1,0 +1,7 @@
+{
+    "variants": {
+        "": {
+            "model": "craftabledeeds:block/deed_pedestal"
+        }
+    }
+}

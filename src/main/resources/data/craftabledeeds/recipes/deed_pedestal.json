@@ -1,0 +1,18 @@
+{
+    "type": "minecraft:crafting_shaped",
+    "pattern": [
+        "###",
+        "XXX"
+    ],
+    "key": {
+        "#": {
+            "tag": "forge:ingots/gold"
+        },
+        "X": {
+            "tag": "forge:ingots/netherite"
+        }
+    },
+    "result": {
+        "item": "craftabledeeds:deed_pedestal"
+    }
+}

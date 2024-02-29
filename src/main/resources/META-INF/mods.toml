@@ -1,0 +1,11 @@
+modLoader="javafml"
+loaderVersion="[28,)"
+issueTrackerURL="https://github.com/Ellpeck/CraftableDeeds"
+license="MIT"
+[[mods]]
+modId="craftabledeeds"
+version="${file.jarVersion}"
+displayName="Craftable Deeds"
+authors="Ellpeck"
+description='''
+Commission for DB20xx'''
