@@ -1,8 +1,16 @@
 package de.ellpeck.craftabledeeds;
 
 import net.minecraft.client.Minecraft;
+import net.minecraft.nbt.CompoundTag;
+import net.minecraft.network.FriendlyByteBuf;
+import net.minecraft.network.protocol.game.ClientboundBlockEntityDataPacket;
 import net.minecraft.resources.ResourceLocation;
+import net.minecraft.server.level.ServerPlayer;
+import net.minecraft.world.entity.player.Player;
 import net.minecraft.world.level.ChunkPos;
+import net.minecraft.world.level.Level;
+import net.minecraft.world.level.ServerLevelAccessor;
+import net.minecraft.world.level.block.entity.BlockEntity;
 import net.minecraftforge.fml.event.lifecycle.FMLCommonSetupEvent;
 import net.minecraftforge.network.NetworkEvent;
 import net.minecraftforge.network.NetworkRegistry;
@@ -23,14 +31,14 @@ public final class PacketHandler {
         network.registerMessage(2, PacketGeneralSettings.class, PacketGeneralSettings::toBytes, PacketGeneralSettings::fromBytes, PacketGeneralSettings::onMessage);
     }
 
-    public static void sendDeeds(PlayerEntity player) {
-        PacketDeeds packet = new PacketDeeds(DeedStorage.get(player.world).write(new CompoundNBT()));
-        network.send(PacketDistributor.PLAYER.with(() -> (ServerPlayerEntity) player), packet);
+    public static void sendDeeds(Player player) {
+        PacketDeeds packet = new PacketDeeds(DeedStorage.get(player.level).save(new CompoundTag()));
+        network.send(PacketDistributor.PLAYER.with(() -> (ServerPlayer) player), packet);
     }
 
-    public static void sendDeedsToEveryone(World world) {
-        PacketDeeds packet = new PacketDeeds(DeedStorage.get(world).write(new CompoundNBT()));
-        network.send(PacketDistributor.DIMENSION.with(world::getDimensionKey), packet);
+    public static void sendDeedsToEveryone(Level world) {
+        PacketDeeds packet = new PacketDeeds(DeedStorage.get(world).save(new CompoundTag()));
+        network.send(PacketDistributor.DIMENSION.with(world::dimension), packet);
     }
 
     public static void sendPlayerSettings(DeedStorage.PlayerSettings settings, DeedStorage.Claim claim) {
@@ -41,27 +49,28 @@ public final class PacketHandler {
         network.sendToServer(new PacketGeneralSettings(claim.canDispensersPlace, claim.canPistonsPush, claim.mapId));
     }
 
-    public static void sendTileEntityToClients(TileEntity tile) {
-        ServerWorld world = (ServerWorld) tile.getWorld();
-        Stream<ServerPlayerEntity> entities = world.getChunkProvider().chunkManager.getTrackingPlayers(new ChunkPos(tile.getPos()), false);
-        SUpdateTileEntityPacket packet = new SUpdateTileEntityPacket(tile.getPos(), -1, tile.write(new CompoundNBT()));
-        entities.forEach(e -> e.connection.sendPacket(packet));
+    public static void sendTileEntityToClients(BlockEntity tile) {
+        ServerLevelAccessor world = (ServerLevelAccessor) tile.getLevel();
+        // Stream<ServerPlayer> entities = world.getChunkSource().chunkMap.getTrackingPlayers(new ChunkPos(tile.getPos()), false);
+        Stream<ServerPlayer> entities = (Stream<ServerPlayer>) world.getLevel().getChunkSource().chunkMap.getPlayers(new ChunkPos(tile.getBlockPos()), false);
+        ClientboundBlockEntityDataPacket packet = ClientboundBlockEntityDataPacket.create(tile);
+        entities.forEach(e -> e.connection.send(packet));
     }
 
     private static class PacketDeeds {
 
-        private final CompoundNBT data;
+        private final CompoundTag data;
 
-        public PacketDeeds(CompoundNBT data) {
+        public PacketDeeds(CompoundTag data) {
             this.data = data;
         }
 
-        public static PacketDeeds fromBytes(PacketBuffer buf) {
-            return new PacketDeeds(buf.readCompoundTag());
+        public static PacketDeeds fromBytes(FriendlyByteBuf buf) {
+            return new PacketDeeds(buf.readNbt());
         }
 
-        public static void toBytes(PacketDeeds packet, PacketBuffer buf) {
-            buf.writeCompoundTag(packet.data);
+        public static void toBytes(PacketDeeds packet, FriendlyByteBuf buf) {
+            buf.writeNbt(packet.data);
         }
 
         // lambda causes classloading issues on a server here
@@ -71,8 +80,8 @@ public final class PacketHandler {
                 @Override
                 public void run() {
                     Minecraft mc = Minecraft.getInstance();
-                    if (mc.world != null)
-                        DeedStorage.get(mc.world).read(packet.data);
+                    if (mc.level != null)
+                        DeedStorage.get(mc.level).save(packet.data);
                 }
             });
             ctx.get().setPacketHandled(true);
@@ -89,21 +98,21 @@ public final class PacketHandler {
             this.claimId = claimId;
         }
 
-        public static PacketPlayerSettings fromBytes(PacketBuffer buf) {
-            return new PacketPlayerSettings(new DeedStorage.PlayerSettings(buf.readCompoundTag()), buf.readVarInt());
+        public static PacketPlayerSettings fromBytes(FriendlyByteBuf buf) {
+            return new PacketPlayerSettings(new DeedStorage.PlayerSettings(buf.readNbt()), buf.readVarInt());
         }
 
-        public static void toBytes(PacketPlayerSettings packet, PacketBuffer buf) {
-            buf.writeCompoundTag(packet.settings.serializeNBT());
+        public static void toBytes(PacketPlayerSettings packet, FriendlyByteBuf buf) {
+            buf.writeNbt(packet.settings.serializeNBT());
             buf.writeVarInt(packet.claimId);
         }
 
         public static void onMessage(PacketPlayerSettings packet, Supplier<NetworkEvent.Context> ctx) {
             ctx.get().enqueueWork(() -> {
-                PlayerEntity sender = ctx.get().getSender();
-                DeedStorage storage = DeedStorage.get(sender.world);
+                Player sender = ctx.get().getSender();
+                DeedStorage storage = DeedStorage.get(sender.level);
                 DeedStorage.Claim claim = storage.getClaim(packet.claimId);
-                if (claim != null && claim.owner.equals(sender.getUniqueID())) {
+                if (claim != null && claim.owner.equals(sender.getUUID())) {
                     claim.playerSettings.put(packet.settings.id, packet.settings);
                     storage.markDirtyAndSend();
                 }
@@ -124,11 +133,11 @@ public final class PacketHandler {
             this.claimId = claimId;
         }
 
-        public static PacketGeneralSettings fromBytes(PacketBuffer buf) {
+        public static PacketGeneralSettings fromBytes(FriendlyByteBuf buf) {
             return new PacketGeneralSettings(buf.readBoolean(), buf.readBoolean(), buf.readVarInt());
         }
 
-        public static void toBytes(PacketGeneralSettings packet, PacketBuffer buf) {
+        public static void toBytes(PacketGeneralSettings packet, FriendlyByteBuf buf) {
             buf.writeBoolean(packet.canDispensersPlace);
             buf.writeBoolean(packet.canPistonsPush);
             buf.writeVarInt(packet.claimId);
@@ -136,10 +145,10 @@ public final class PacketHandler {
 
         public static void onMessage(PacketGeneralSettings packet, Supplier<NetworkEvent.Context> ctx) {
             ctx.get().enqueueWork(() -> {
-                PlayerEntity sender = ctx.get().getSender();
-                DeedStorage storage = DeedStorage.get(sender.world);
+                Player sender = ctx.get().getSender();
+                DeedStorage storage = DeedStorage.get(sender.level);
                 DeedStorage.Claim claim = storage.getClaim(packet.claimId);
-                if (claim != null && claim.owner.equals(sender.getUniqueID())) {
+                if (claim != null && claim.owner.equals(sender.getUUID())) {
                     claim.canDispensersPlace = packet.canDispensersPlace;
                     claim.canPistonsPush = packet.canPistonsPush;
                     storage.markDirtyAndSend();

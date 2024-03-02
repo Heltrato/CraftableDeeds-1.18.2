@@ -2,29 +2,34 @@ package de.ellpeck.craftabledeeds.ui;
 
 import com.mojang.blaze3d.matrix.MatrixStack;
 import com.mojang.blaze3d.systems.RenderSystem;
+import com.mojang.blaze3d.vertex.PoseStack;
 import de.ellpeck.craftabledeeds.CraftableDeeds;
 import de.ellpeck.craftabledeeds.DeedStorage;
 import de.ellpeck.craftabledeeds.PacketHandler;
 import net.minecraft.block.Blocks;
 import net.minecraft.client.Minecraft;
 import net.minecraft.client.gui.screen.inventory.ContainerScreen;
+import net.minecraft.client.gui.screens.inventory.AbstractContainerScreen;
 import net.minecraft.client.gui.widget.ToggleWidget;
 import net.minecraft.client.gui.widget.Widget;
 import net.minecraft.client.gui.widget.button.AbstractButton;
 import net.minecraft.entity.player.PlayerEntity;
 import net.minecraft.entity.player.PlayerInventory;
+import net.minecraft.network.chat.Component;
+import net.minecraft.resources.ResourceLocation;
 import net.minecraft.util.ResourceLocation;
 import net.minecraft.util.math.MathHelper;
 import net.minecraft.util.text.ITextComponent;
 import net.minecraft.util.text.StringTextComponent;
 import net.minecraft.util.text.TranslationTextComponent;
+import net.minecraft.world.entity.player.Inventory;
 
 import java.util.ArrayList;
 import java.util.List;
 import java.util.Locale;
 import java.util.function.Function;
 
-public class DeedPedestalScreen extends ContainerScreen<DeedPedestalContainer> {
+public class DeedPedestalScreen extends AbstractContainerScreen<DeedPedestalContainer> {
 
     private static final ResourceLocation TEXTURE = new ResourceLocation(CraftableDeeds.ID, "textures/ui/deed_pedestal.png");
     private static final int MAX_WIDGET_AMT_Y = 5;
@@ -34,10 +39,10 @@ public class DeedPedestalScreen extends ContainerScreen<DeedPedestalContainer> {
     private int widgetAmountY;
     private boolean isScrolling;
 
-    public DeedPedestalScreen(DeedPedestalContainer screenContainer, PlayerInventory inv, ITextComponent titleIn) {
+    public DeedPedestalScreen(DeedPedestalContainer screenContainer, Inventory inv, Component titleIn) {
         super(screenContainer, inv, titleIn);
-        this.xSize = 240;
-        this.ySize = 144;
+        this.imageWidth = 240;
+        this.imageHeight = 144;
     }
 
     @Override
@@ -47,10 +52,10 @@ public class DeedPedestalScreen extends ContainerScreen<DeedPedestalContainer> {
     }
 
     @Override
-    public void render(MatrixStack matrixStack, int mouseX, int mouseY, float partialTicks) {
+    public void render(PoseStack matrixStack, int mouseX, int mouseY, float partialTicks) {
         this.renderBackground(matrixStack);
         super.render(matrixStack, mouseX, mouseY, partialTicks);
-        this.renderHoveredTooltip(matrixStack, mouseX, mouseY);
+        this.renderTooltip(matrixStack, mouseX, mouseY);
         for (Widget widget : this.buttons) {
             if (widget.isHovered())
                 widget.renderToolTip(matrixStack, mouseX, mouseY);

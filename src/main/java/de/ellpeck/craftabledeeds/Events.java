@@ -1,25 +1,25 @@
 package de.ellpeck.craftabledeeds;
 
-import net.minecraft.block.Block;
-import net.minecraft.block.BlockState;
-import net.minecraft.entity.Entity;
-import net.minecraft.entity.MobEntity;
-import net.minecraft.entity.ai.goal.NearestAttackableTargetGoal;
-import net.minecraft.entity.boss.WitherEntity;
-import net.minecraft.entity.item.HangingEntity;
-import net.minecraft.entity.item.TNTEntity;
-import net.minecraft.entity.monster.CreeperEntity;
-import net.minecraft.entity.monster.EndermanEntity;
-import net.minecraft.entity.monster.ZombieEntity;
-import net.minecraft.entity.passive.IronGolemEntity;
-import net.minecraft.entity.passive.SnowGolemEntity;
-import net.minecraft.entity.passive.TameableEntity;
-import net.minecraft.entity.passive.WolfEntity;
-import net.minecraft.entity.player.PlayerEntity;
-import net.minecraft.entity.projectile.WitherSkullEntity;
-import net.minecraft.util.math.BlockPos;
-import net.minecraft.world.Explosion;
-import net.minecraft.world.World;
+import net.minecraft.core.BlockPos;
+import net.minecraft.world.entity.Entity;
+import net.minecraft.world.entity.Mob;
+import net.minecraft.world.entity.TamableAnimal;
+import net.minecraft.world.entity.ai.goal.target.NearestAttackableTargetGoal;
+import net.minecraft.world.entity.animal.IronGolem;
+import net.minecraft.world.entity.animal.SnowGolem;
+import net.minecraft.world.entity.animal.Wolf;
+import net.minecraft.world.entity.boss.wither.WitherBoss;
+import net.minecraft.world.entity.decoration.HangingEntity;
+import net.minecraft.world.entity.item.PrimedTnt;
+import net.minecraft.world.entity.monster.Creeper;
+import net.minecraft.world.entity.monster.EnderMan;
+import net.minecraft.world.entity.monster.Zombie;
+import net.minecraft.world.entity.player.Player;
+import net.minecraft.world.entity.projectile.WitherSkull;
+import net.minecraft.world.level.Explosion;
+import net.minecraft.world.level.Level;
+import net.minecraft.world.level.block.Block;
+import net.minecraft.world.level.block.state.BlockState;
 import net.minecraftforge.event.RegisterCommandsEvent;
 import net.minecraftforge.event.TickEvent;
 import net.minecraftforge.event.entity.EntityJoinWorldEvent;
@@ -42,18 +42,18 @@ public final class Events {
     @SubscribeEvent
     public static void onPlayerJoin(EntityJoinWorldEvent event) {
         Entity entity = event.getEntity();
-        if (!entity.world.isRemote) {
-            if (entity instanceof PlayerEntity) {
-                PacketHandler.sendDeeds((PlayerEntity) entity);
-            } else if (entity instanceof IronGolemEntity || entity instanceof SnowGolemEntity || entity instanceof WolfEntity || CraftableDeeds.additionalLoyalMobs.get().contains(entity.getType().getRegistryName().toString())) {
-                MobEntity mob = ((MobEntity) entity);
-                mob.targetSelector.addGoal(3, new NearestAttackableTargetGoal<>(mob, PlayerEntity.class, 10, false, false, p -> {
-                    if (mob instanceof TameableEntity && !((TameableEntity) mob).isTamed())
+        if (!entity.level.isClientSide) {
+            if (entity instanceof Player) {
+                PacketHandler.sendDeeds((Player) entity);
+            } else if (entity instanceof IronGolem || entity instanceof SnowGolem || entity instanceof Wolf || CraftableDeeds.additionalLoyalMobs.get().contains(entity.getType().getRegistryName().toString())) {
+                Mob mob = ((Mob) entity);
+                mob.targetSelector.addGoal(3, new NearestAttackableTargetGoal<>(mob, Player.class, 10, false, false, p -> {
+                    if (mob instanceof TamableAnimal && !((TamableAnimal) mob).isTame())
                         return false;
-                    if (isDisallowedHere(p, p.getPosition(), s -> !s.loyalMobsAttack)) {
+                    if (isDisallowedHere(p, p.getOnPos(), s -> !s.loyalMobsAttack)) {
                         // hack that allows iron golems to attack players, bleh
-                        if (mob instanceof IronGolemEntity)
-                            ((IronGolemEntity) mob).setPlayerCreated(false);
+                        if (mob instanceof IronGolem)
+                            ((IronGolem) mob).setPlayerCreated(false);
                         return true;
                     }
                     return false;
@@ -71,7 +71,7 @@ public final class Events {
     @SubscribeEvent
     public static void onBlockBreak(BlockEvent.BreakEvent event) {
         if (isDisallowedHere(event.getPlayer(), event.getPos(), s -> s.canPlaceBreak)) {
-            if (isExemptConfig(CraftableDeeds.breakableBlocks.get(), event.getState().getBlock()))
+            if (isExemptConfig(CraftableDeeds.breakableBlocks.get(), String.valueOf(event.getState().getBlock())))
                 return;
             event.setCanceled(true);
         }
@@ -79,7 +79,7 @@ public final class Events {
 
     @SubscribeEvent
     public static void onBlockPlace(BlockEvent.EntityPlaceEvent event) {
-        if (event.getEntity() instanceof PlayerEntity && isDisallowedHere(event.getEntity(), event.getPos(), s -> s.canPlaceBreak))
+        if (event.getEntity() instanceof Player && isDisallowedHere(event.getEntity(), event.getPos(), s -> s.canPlaceBreak))
             event.setCanceled(true);
     }
 
@@ -90,7 +90,7 @@ public final class Events {
             // always allow interacting with the pedestal!
             if (state.getBlock() == CraftableDeeds.DEED_PEDESTAL_BLOCK.get())
                 return;
-            if (isExemptConfig(CraftableDeeds.interactableBlocks.get(), state.getBlock()))
+            if (isExemptConfig(CraftableDeeds.interactableBlocks.get(), String.valueOf(state.getBlock())))
                 return;
 
             if (!CraftableDeeds.allowOpeningBlocks.get())
@@ -115,7 +115,7 @@ public final class Events {
     @SubscribeEvent
     public static void onEntityAttack(AttackEntityEvent event) {
         Entity target = event.getTarget();
-        if (target instanceof HangingEntity && isDisallowedHere(event.getPlayer(), target.getPosition(), s -> s.canPlaceBreak))
+        if (target instanceof HangingEntity && isDisallowedHere(event.getPlayer(), target.getOnPos(), s -> s.canPlaceBreak))
             event.setCanceled(true);
     }
 
@@ -123,8 +123,8 @@ public final class Events {
     public static void onMobGriefing(EntityMobGriefingEvent event) {
         Entity entity = event.getEntity();
         // endermen picking stuff up and zombies breaking down doors should be disallowed
-        if (entity instanceof EndermanEntity || entity instanceof ZombieEntity || entity instanceof CreeperEntity && !CraftableDeeds.allowCreeperExplosions.get()) {
-            if (isDisallowedHere(entity, entity.getPosition(), null))
+        if (entity instanceof EnderMan || entity instanceof Zombie || entity instanceof Creeper && !CraftableDeeds.allowCreeperExplosions.get()) {
+            if (isDisallowedHere(entity, entity.getOnPos(), null))
                 event.setResult(Event.Result.DENY);
         }
     }
@@ -135,11 +135,11 @@ public final class Events {
         Entity exploder = explosion.getExploder();
         if (exploder != null && isDisallowedHere(exploder, new BlockPos(explosion.getPosition()), null)) {
             // creepers are handled in onMobGriefing
-            if (exploder instanceof CreeperEntity)
+            if (exploder instanceof Creeper)
                 return;
-            if (exploder instanceof TNTEntity && CraftableDeeds.allowTntExplosions.get())
+            if (exploder instanceof PrimedTnt && CraftableDeeds.allowTntExplosions.get())
                 return;
-            if ((exploder instanceof WitherEntity || exploder instanceof WitherSkullEntity) && CraftableDeeds.allowWitherExplosions.get())
+            if ((exploder instanceof WitherBoss || exploder instanceof WitherSkull) && CraftableDeeds.allowWitherExplosions.get())
                 return;
 
             event.setCanceled(true);
@@ -148,8 +148,8 @@ public final class Events {
 
     @SubscribeEvent
     public static void onPiston(PistonEvent.Pre event) {
-        if (event.getWorld() instanceof World) {
-            DeedStorage storage = DeedStorage.get((World) event.getWorld());
+        if (event.getWorld() instanceof Level) {
+            DeedStorage storage = DeedStorage.get((Level) event.getWorld());
             DeedStorage.Claim claim = storage.getClaim(event.getPos().getX(), event.getPos().getY(), event.getPos().getZ());
             if (claim != null && claim.isActive() && !claim.canPistonsPush)
                 event.setCanceled(true);
@@ -163,22 +163,22 @@ public final class Events {
 
     private static boolean isDisallowedHere(Entity entity, BlockPos pos, Function<DeedStorage.PlayerSettings, Boolean> relevantSetting) {
         // opped players should be ignored
-        if (entity.hasPermissionLevel(CraftableDeeds.deedBypassPermissionLevel.get()))
+        if (entity.hasPermissions(CraftableDeeds.deedBypassPermissionLevel.get()))
             return false;
-        DeedStorage storage = DeedStorage.get(entity.world);
+        DeedStorage storage = DeedStorage.get(entity.level);
         DeedStorage.Claim claim = storage.getClaim(pos.getX(), pos.getY(), pos.getZ());
         if (claim == null || !claim.isActive())
             return false;
         // the owner can do anything in their claim (obviously)
-        if (claim.owner.equals(entity.getUniqueID()))
+        if (claim.owner.equals(entity.getUUID()))
             return false;
         // allow players that are whitelisted in the pedestal settings
-        if (relevantSetting != null && entity instanceof PlayerEntity) {
-            if (!claim.playerSettings.containsKey(entity.getUniqueID())) {
-                claim.playerSettings.put(entity.getUniqueID(), new DeedStorage.PlayerSettings((PlayerEntity) entity));
+        if (relevantSetting != null && entity instanceof Player) {
+            if (!claim.playerSettings.containsKey(entity.getUUID())) {
+                claim.playerSettings.put(entity.getUUID(), new DeedStorage.PlayerSettings((Player) entity));
                 storage.markDirtyAndSend();
             }
-            DeedStorage.PlayerSettings settings = claim.playerSettings.get(entity.getUniqueID());
+            DeedStorage.PlayerSettings settings = claim.playerSettings.get(entity.getUUID());
             if (settings != null && relevantSetting.apply(settings))
                 return false;
         }

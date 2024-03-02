@@ -1,19 +1,19 @@
 package de.ellpeck.craftabledeeds;
 
 import de.ellpeck.craftabledeeds.blocks.DeedPedestalTileEntity;
-import net.minecraft.entity.player.PlayerEntity;
-import net.minecraft.item.FilledMapItem;
-import net.minecraft.item.ItemStack;
-import net.minecraft.nbt.CompoundNBT;
-import net.minecraft.nbt.INBT;
-import net.minecraft.nbt.ListNBT;
-import net.minecraft.util.math.AxisAlignedBB;
-import net.minecraft.util.math.BlockPos;
-import net.minecraft.world.World;
-import net.minecraft.world.server.ServerWorld;
-import net.minecraft.world.storage.MapData;
-import net.minecraft.world.storage.WorldSavedData;
-import net.minecraftforge.common.util.Constants;
+import net.minecraft.SharedConstants;
+import net.minecraft.core.BlockPos;
+import net.minecraft.nbt.CompoundTag;
+import net.minecraft.nbt.ListTag;
+import net.minecraft.nbt.Tag;
+import net.minecraft.server.level.ServerLevel;
+import net.minecraft.world.entity.player.Player;
+import net.minecraft.world.item.ItemStack;
+import net.minecraft.world.item.MapItem;
+import net.minecraft.world.level.Level;
+import net.minecraft.world.level.saveddata.SavedData;
+import net.minecraft.world.level.saveddata.maps.MapItemSavedData;
+import net.minecraft.world.phys.AABB;
 import net.minecraftforge.common.util.FakePlayer;
 import net.minecraftforge.common.util.INBTSerializable;
 
@@ -21,22 +21,21 @@ import java.util.HashMap;
 import java.util.Map;
 import java.util.UUID;
 
-public class DeedStorage extends WorldSavedData {
+public class DeedStorage extends SavedData {
 
     private static final String NAME = CraftableDeeds.ID + ":deed_storage";
     private static DeedStorage clientStorage;
 
     public Map<BlockPos, DeedPedestalTileEntity> pedestals = new HashMap<>();
-    private final World world;
+    private final Level world;
     private final Map<Integer, Claim> claims = new HashMap<>();
 
-    public DeedStorage(World world) {
-        super(NAME);
+    public DeedStorage(Level world) {
         this.world = world;
     }
 
-    public void addClaim(int id, PlayerEntity owner) {
-        this.claims.put(id, new Claim(this.world, id, owner.getUniqueID()));
+    public void addClaim(int id, Player owner) {
+        this.claims.put(id, new Claim(this.world, id, owner.getUUID()));
         this.markDirtyAndSend();
     }
 
@@ -59,7 +58,7 @@ public class DeedStorage extends WorldSavedData {
 
     public void update() {
         int interval = 40;
-        if (this.world.isRemote || this.world.getGameTime() % interval != 0)
+        if (this.world.isClientSide || this.world.getGameTime() % interval != 0)
             return;
         for (Claim claim : this.claims.values()) {
             // update claim cooldown
@@ -76,7 +75,7 @@ public class DeedStorage extends WorldSavedData {
                 DeedPedestalTileEntity existing = this.pedestals.get(claim.pedestal);
                 if (existing != null) {
                     ItemStack stack = existing.items.getStackInSlot(0);
-                    if (stack.getItem() == CraftableDeeds.FILLED_DEED.get() && FilledMapItem.getMapId(stack) == claim.mapId)
+                    if (stack.getItem() == CraftableDeeds.FILLED_DEED.get() && MapItem.getMapId(stack) == claim.mapId)
                         continue;
                 }
                 claim.pedestal = null;
@@ -84,12 +83,12 @@ public class DeedStorage extends WorldSavedData {
             }
 
             // if the pedestal doesn't still contain our deed, check if there is any new pedestal
-            AxisAlignedBB area = claim.getArea();
+            AABB area = claim.getArea();
             for (DeedPedestalTileEntity tile : this.pedestals.values()) {
                 BlockPos pos = tile.getPos();
                 if (area.contains(pos.getX(), pos.getY(), pos.getZ())) {
                     ItemStack stack = tile.items.getStackInSlot(0);
-                    if (stack.getItem() == CraftableDeeds.FILLED_DEED.get() && FilledMapItem.getMapId(stack) == claim.mapId) {
+                    if (stack.getItem() == CraftableDeeds.FILLED_DEED.get() && MapItem.getMapId(stack) == claim.mapId) {
                         claim.pedestal = pos;
                         this.markDirtyAndSend();
                         break;
@@ -100,42 +99,43 @@ public class DeedStorage extends WorldSavedData {
     }
 
     public void markDirtyAndSend() {
-        if (!this.world.isRemote) {
+        if (!this.world.isClientSide) {
             PacketHandler.sendDeedsToEveryone(this.world);
-            this.markDirty();
+            this.setDirty();
         }
     }
 
+/*
     @Override
-    public void read(CompoundNBT nbt) {
+    public void read(CompoundTag nbt) {
         this.claims.clear();
-        ListNBT claims = nbt.getList("claims", Constants.NBT.TAG_COMPOUND);
+        ListTag claims = nbt.getList("claims", SharedConstants.SNBT_NAG_VERSION);
         for (int i = 0; i < claims.size(); i++) {
             Claim claim = new Claim(this.world, claims.getCompound(i));
             this.claims.put(claim.mapId, claim);
         }
-    }
+    }*/
 
     @Override
-    public CompoundNBT write(CompoundNBT compound) {
-        ListNBT claims = new ListNBT();
+    public CompoundTag save(CompoundTag compound) {
+        ListTag claims = new ListTag();
         for (Claim claim : this.claims.values())
             claims.add(claim.serializeNBT());
         compound.put("claims", claims);
         return compound;
     }
 
-    public static DeedStorage get(World world) {
-        if (world.isRemote) {
+    public static DeedStorage get(Level world) {
+        if (world.isClientSide) {
             if (clientStorage == null || clientStorage.world != world)
                 clientStorage = new DeedStorage(world);
             return clientStorage;
         } else {
-            return ((ServerWorld) world).getSavedData().getOrCreate(() -> new DeedStorage(world), NAME);
+            return ((ServerLevel) world).getDataStorage().computeIfAbsent(DeedStorage::save, () -> new DeedStorage(world), NAME);
         }
     }
 
-    public static class Claim implements INBTSerializable<CompoundNBT> {
+    public static class Claim implements INBTSerializable<CompoundTag> {
 
         public final Map<UUID, PlayerSettings> playerSettings = new HashMap<>();
         public int mapId;
@@ -145,36 +145,36 @@ public class DeedStorage extends WorldSavedData {
         public boolean canDispensersPlace = true;
         public boolean canPistonsPush = true;
 
-        private final World world;
+        private final Level world;
         private int xCenter;
         private int zCenter;
         private int scale;
 
-        public Claim(World world, int mapId, UUID owner) {
-            MapData data = world.getMapData(FilledMapItem.getMapName(mapId));
+        public Claim(Level world, int mapId, UUID owner) {
+            MapItemSavedData data = world.getMapData(MapItem.makeKey(mapId));
             this.world = world;
             this.mapId = mapId;
             this.owner = owner;
-            this.xCenter = data.xCenter;
-            this.zCenter = data.zCenter;
+            this.xCenter = data.x;
+            this.zCenter = data.z;
             this.scale = data.scale;
         }
 
-        public Claim(World world, CompoundNBT nbt) {
+        public Claim(Level world, CompoundTag nbt) {
             this.world = world;
             this.deserializeNBT(nbt);
         }
 
-        public AxisAlignedBB getArea() {
+        public AABB getArea() {
             int i = 1 << this.scale;
-            return new AxisAlignedBB(
+            return new AABB(
                     // start at y 15
                     this.xCenter - 64 * i, 15, this.zCenter - 64 * i,
                     this.xCenter + 64 * i, this.world.getHeight(), this.zCenter + 64 * i);
         }
 
         public Object getOwnerName() {
-            PlayerEntity owner = this.world.getPlayerByUuid(this.owner);
+            Player owner = this.world.getPlayerByUUID(this.owner);
             return owner != null ? owner.getDisplayName() : this.owner;
         }
 
@@ -185,10 +185,10 @@ public class DeedStorage extends WorldSavedData {
         }
 
         @Override
-        public CompoundNBT serializeNBT() {
-            CompoundNBT nbt = new CompoundNBT();
+        public CompoundTag serializeNBT() {
+            CompoundTag nbt = new CompoundTag();
             nbt.putInt("id", this.mapId);
-            nbt.putUniqueId("owner", this.owner);
+            nbt.putUUID("owner", this.owner);
             nbt.putInt("xCenter", this.xCenter);
             nbt.putInt("zCenter", this.zCenter);
             nbt.putInt("scale", this.scale);
@@ -196,8 +196,8 @@ public class DeedStorage extends WorldSavedData {
             nbt.putBoolean("canDispensersPlace", this.canDispensersPlace);
             nbt.putBoolean("canPistonsPush", this.canPistonsPush);
             if (this.pedestal != null)
-                nbt.putLong("pedestal", this.pedestal.toLong());
-            ListNBT playerSettings = new ListNBT();
+                nbt.putLong("pedestal", this.pedestal.asLong());
+            ListTag playerSettings = new ListTag();
             for (PlayerSettings settings : this.playerSettings.values())
                 playerSettings.add(settings.serializeNBT());
             nbt.put("playerSettings", playerSettings);
@@ -205,25 +205,25 @@ public class DeedStorage extends WorldSavedData {
         }
 
         @Override
-        public void deserializeNBT(CompoundNBT nbt) {
+        public void deserializeNBT(CompoundTag nbt) {
             this.mapId = nbt.getInt("id");
-            this.owner = nbt.getUniqueId("owner");
+            this.owner = nbt.getUUID("owner");
             this.xCenter = nbt.getInt("xCenter");
             this.zCenter = nbt.getInt("zCenter");
             this.scale = nbt.getInt("scale");
             this.cooldown = nbt.getInt("cooldown");
             this.canDispensersPlace = nbt.getBoolean("canDispensersPlace");
             this.canPistonsPush = nbt.getBoolean("canPistonsPush");
-            this.pedestal = nbt.contains("pedestal") ? BlockPos.fromLong(nbt.getLong("pedestal")) : null;
+            this.pedestal = nbt.contains("pedestal") ? BlockPos.of(nbt.getLong("pedestal")) : null;
             this.playerSettings.clear();
-            for (INBT inbt : nbt.getList("playerSettings", Constants.NBT.TAG_COMPOUND)) {
-                PlayerSettings settings = new PlayerSettings((CompoundNBT) inbt);
+            for (Tag inbt : nbt.getList("playerSettings", SharedConstants.SNBT_NAG_VERSION)) {
+                PlayerSettings settings = new PlayerSettings((CompoundTag) inbt);
                 this.playerSettings.put(settings.id, settings);
             }
         }
     }
 
-    public static class PlayerSettings implements INBTSerializable<CompoundNBT> {
+    public static class PlayerSettings implements INBTSerializable<CompoundTag> {
 
         public UUID id;
         public String name;
@@ -232,20 +232,20 @@ public class DeedStorage extends WorldSavedData {
         public boolean loyalMobsAttack;
         public boolean canOpenContainers;
 
-        public PlayerSettings(PlayerEntity player) {
-            this.id = player.getUniqueID();
+        public PlayerSettings(Player player) {
+            this.id = player.getUUID();
             this.name = player.getDisplayName().getString();
             this.isFake = player instanceof FakePlayer;
         }
 
-        public PlayerSettings(CompoundNBT nbt) {
+        public PlayerSettings(CompoundTag nbt) {
             this.deserializeNBT(nbt);
         }
 
         @Override
-        public CompoundNBT serializeNBT() {
-            CompoundNBT nbt = new CompoundNBT();
-            nbt.putUniqueId("id", this.id);
+        public CompoundTag serializeNBT() {
+            CompoundTag nbt = new CompoundTag();
+            nbt.putUUID("id", this.id);
             nbt.putString("name", this.name);
             nbt.putBoolean("isFake", this.isFake);
             nbt.putBoolean("canPlaceBreak", this.canPlaceBreak);
@@ -255,8 +255,8 @@ public class DeedStorage extends WorldSavedData {
         }
 
         @Override
-        public void deserializeNBT(CompoundNBT nbt) {
-            this.id = nbt.getUniqueId("id");
+        public void deserializeNBT(CompoundTag nbt) {
+            this.id = nbt.getUUID("id");
             this.name = nbt.getString("name");
             this.isFake = nbt.getBoolean("isFake");
             this.canPlaceBreak = nbt.getBoolean("canPlaceBreak");

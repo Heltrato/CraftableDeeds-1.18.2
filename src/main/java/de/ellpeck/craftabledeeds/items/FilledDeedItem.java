@@ -2,13 +2,18 @@ package de.ellpeck.craftabledeeds.items;
 
 import de.ellpeck.craftabledeeds.CraftableDeeds;
 import de.ellpeck.craftabledeeds.DeedStorage;
+import net.minecraft.network.chat.Component;
+import net.minecraft.network.chat.TranslatableComponent;
 import net.minecraft.world.InteractionResult;
-import net.minecraft.world.InteractionResultHolder;
+import net.minecraft.world.entity.player.Player;
 import net.minecraft.world.item.ItemStack;
 import net.minecraft.world.item.MapItem;
+import net.minecraft.world.item.TooltipFlag;
 import net.minecraft.world.item.context.UseOnContext;
+import net.minecraft.world.level.Level;
 import net.minecraft.world.level.block.Blocks;
 import net.minecraft.world.level.block.state.BlockState;
+import net.minecraft.world.level.saveddata.maps.MapItemSavedData;
 import net.minecraftforge.api.distmarker.Dist;
 import net.minecraftforge.api.distmarker.OnlyIn;
 
@@ -26,10 +31,6 @@ public class FilledDeedItem extends MapItem {
         return true;
     }
 
-    @Override
-    public InteractionResult useOn(UseOnContext p_42885_) {
-        return super.useOn(p_42885_);
-    }
 
     @Override
     public InteractionResult useOn(UseOnContext context) {
@@ -37,32 +38,34 @@ public class FilledDeedItem extends MapItem {
         // delet the deed when using a grindstone
         if (state.getBlock() == Blocks.GRINDSTONE) {
             if (!context.getLevel().isClientSide) {
-                DeedStorage.get(context.getLevel()).removeClaim(MapItem.getMapId(context.getItem()));
-                context.getPlayer().setHeldItem(context.getHand(), new ItemStack(CraftableDeeds.EMPTY_DEED.get()));
+                DeedStorage.get(context.getLevel()).removeClaim(MapItem.getMapId(context.getItemInHand()));
+                context.getPlayer().setItemInHand(context.getHand(), new ItemStack(CraftableDeeds.EMPTY_DEED.get()));
             }
-            return ActionResultType.SUCCESS;
+            return InteractionResult.SUCCESS;
         }
-        return super.onItemUse(context);
+        return super.useOn(context);
     }
+
 
     @Override
     @OnlyIn(Dist.CLIENT)
-    public void addInformation(ItemStack stack, @Nullable World worldIn, List<ITextComponent> tooltip, ITooltipFlag flagIn) {
-        super.addInformation(stack, worldIn, tooltip, flagIn);
+    public void appendHoverText(ItemStack stack, @Nullable Level worldIn, List<Component> tooltip, TooltipFlag flagIn) {
+        super.appendHoverText(stack, worldIn, tooltip, flagIn);
         DeedStorage.Claim claim = DeedStorage.get(worldIn).getClaim(getMapId(stack));
         if (claim == null)
             return;
-        tooltip.add(new TranslationTextComponent("info." + CraftableDeeds.ID + ".owner", claim.getOwnerName()));
+        tooltip.add(new TranslatableComponent("info." + CraftableDeeds.ID + ".owner", claim.getOwnerName()));
     }
 
     @Override
-    public void onCreated(ItemStack stack, World worldIn, PlayerEntity playerIn) {
+    public void onCraftedBy(ItemStack stack, Level worldIn, Player playerIn) {
         // no-op since super does some nbt stuff we don't need
     }
 
+
     @Nullable
     @Override
-    protected MapData getCustomMapData(ItemStack stack, World worldIn) {
-        return getData(stack, worldIn);
+    protected MapItemSavedData getCustomMapData(ItemStack stack, Level worldIn) {
+        return getSavedData(stack, worldIn);
     }
 }
