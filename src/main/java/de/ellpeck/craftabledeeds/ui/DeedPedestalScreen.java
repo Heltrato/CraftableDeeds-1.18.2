@@ -8,6 +8,7 @@ import de.ellpeck.craftabledeeds.DeedStorage;
 import de.ellpeck.craftabledeeds.PacketHandler;
 import net.minecraft.block.Blocks;
 import net.minecraft.client.Minecraft;
+import net.minecraft.client.gui.components.AbstractWidget;
 import net.minecraft.client.gui.screen.inventory.ContainerScreen;
 import net.minecraft.client.gui.screens.inventory.AbstractContainerScreen;
 import net.minecraft.client.gui.widget.ToggleWidget;
@@ -56,7 +57,7 @@ public class DeedPedestalScreen extends AbstractContainerScreen<DeedPedestalCont
         this.renderBackground(matrixStack);
         super.render(matrixStack, mouseX, mouseY, partialTicks);
         this.renderTooltip(matrixStack, mouseX, mouseY);
-        for (Widget widget : this.buttons) {
+        for (AbstractWidget widget : this.buttons) {
             if (widget.isHovered())
                 widget.renderToolTip(matrixStack, mouseX, mouseY);
         }

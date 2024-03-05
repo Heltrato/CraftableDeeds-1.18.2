@@ -105,8 +105,7 @@ public class DeedStorage extends SavedData {
         }
     }
 
-/*
-    @Override
+
     public void read(CompoundTag nbt) {
         this.claims.clear();
         ListTag claims = nbt.getList("claims", SharedConstants.SNBT_NAG_VERSION);
@@ -114,7 +113,7 @@ public class DeedStorage extends SavedData {
             Claim claim = new Claim(this.world, claims.getCompound(i));
             this.claims.put(claim.mapId, claim);
         }
-    }*/
+    }
 
     @Override
     public CompoundTag save(CompoundTag compound) {
