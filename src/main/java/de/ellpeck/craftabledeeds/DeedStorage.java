@@ -13,6 +13,7 @@ import net.minecraft.world.item.MapItem;
 import net.minecraft.world.level.Level;
 import net.minecraft.world.level.saveddata.SavedData;
 import net.minecraft.world.level.saveddata.maps.MapItemSavedData;
+import net.minecraft.world.level.storage.DimensionDataStorage;
 import net.minecraft.world.phys.AABB;
 import net.minecraftforge.common.util.FakePlayer;
 import net.minecraftforge.common.util.INBTSerializable;
@@ -27,11 +28,20 @@ public class DeedStorage extends SavedData {
     private static DeedStorage clientStorage;
 
     public Map<BlockPos, DeedPedestalTileEntity> pedestals = new HashMap<>();
-    private final Level world;
+    private Level world;
     private final Map<Integer, Claim> claims = new HashMap<>();
 
     public DeedStorage(Level world) {
         this.world = world;
+    }
+
+    public DeedStorage(CompoundTag nbt) {
+        this.claims.clear();
+        ListTag claims = nbt.getList("claims", SharedConstants.SNBT_NAG_VERSION);
+        for (int i = 0; i < claims.size(); i++) {
+            Claim claim = new Claim(this.world, claims.getCompound(i));
+            this.claims.put(claim.mapId, claim);
+        }
     }
 
     public void addClaim(int id, Player owner) {
@@ -130,7 +140,9 @@ public class DeedStorage extends SavedData {
                 clientStorage = new DeedStorage(world);
             return clientStorage;
         } else {
-            return ((ServerLevel) world).getDataStorage().computeIfAbsent(DeedStorage::save, () -> new DeedStorage(world), NAME);
+            ServerLevel overworld = world.getServer().overworld();
+            DimensionDataStorage storage = overworld.getDataStorage();
+            return storage.computeIfAbsent(DeedStorage::new, () -> new DeedStorage(world), NAME);
         }
     }
 
