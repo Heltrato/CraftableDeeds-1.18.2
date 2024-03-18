@@ -95,7 +95,7 @@ public class DeedStorage extends SavedData {
             // if the pedestal doesn't still contain our deed, check if there is any new pedestal
             AABB area = claim.getArea();
             for (DeedPedestalTileEntity tile : this.pedestals.values()) {
-                BlockPos pos = tile.getPos();
+                BlockPos pos = tile.getBlockPos();
                 if (area.contains(pos.getX(), pos.getY(), pos.getZ())) {
                     ItemStack stack = tile.items.getStackInSlot(0);
                     if (stack.getItem() == CraftableDeeds.FILLED_DEED.get() && MapItem.getMapId(stack) == claim.mapId) {

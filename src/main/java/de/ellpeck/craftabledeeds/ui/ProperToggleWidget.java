@@ -2,12 +2,14 @@ package de.ellpeck.craftabledeeds.ui;
 
 import com.mojang.blaze3d.vertex.PoseStack;
 import net.minecraft.client.Minecraft;
+import net.minecraft.client.gui.GuiComponent;
 import net.minecraft.client.gui.components.StateSwitchingButton;
 import net.minecraft.network.chat.TranslatableComponent;
 import net.minecraft.resources.ResourceLocation;
 
 import java.util.Collections;
 import java.util.function.Consumer;
+
 import net.minecraft.client.gui.screens.Screen;
 
 // the default toggle widget doesn't actually get toggled on click because why would it
@@ -39,6 +41,6 @@ public class ProperToggleWidget extends StateSwitchingButton {
 
     @Override
     public void renderToolTip(PoseStack matrixStack, int mouseX, int mouseY) {
-        Screen.(matrixStack, Collections.singletonList(this.getMessage()), mouseX, mouseY, Integer.MAX_VALUE, Integer.MAX_VALUE, Integer.MAX_VALUE, Minecraft.getInstance().fontRenderer);
+        //DeedPedestalScreen.this.renderTooltip(matrixStack, Collections.singletonList(this.getMessage()), mouseX, mouseY, Integer.MAX_VALUE, Integer.MAX_VALUE, Integer.MAX_VALUE, Minecraft.getInstance().font);
     }
 }

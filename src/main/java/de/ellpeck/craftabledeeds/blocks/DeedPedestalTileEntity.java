@@ -20,7 +20,6 @@ import net.minecraft.world.item.ItemStack;
 import net.minecraft.world.item.MapItem;
 import net.minecraft.world.level.ChunkPos;
 import net.minecraft.world.level.block.entity.BlockEntity;
-import net.minecraft.world.level.block.entity.TickingBlockEntity;
 import net.minecraft.world.level.block.state.BlockState;
 import net.minecraft.world.level.saveddata.maps.MapItemSavedData;
 import net.minecraft.world.phys.AABB;
@@ -30,13 +29,15 @@ import net.minecraftforge.items.ItemStackHandler;
 
 import javax.annotation.Nullable;
 
-public class DeedPedestalTileEntity extends BlockEntity implements TickingBlockEntity, MenuProvider {
+public class DeedPedestalTileEntity extends BlockEntity implements MenuProvider, TickableBlockEntity {
 
     public final ItemStackHandler items = new ItemStackHandler(1);
 
     public DeedPedestalTileEntity(BlockPos pos, BlockState state) {
         super(CraftableDeeds.DEED_PEDESTAL_TILE.get(), pos, state);
     }
+
+
 
     public int getMapId() {
         ItemStack stack = this.items.getStackInSlot(0);
@@ -67,7 +68,7 @@ public class DeedPedestalTileEntity extends BlockEntity implements TickingBlockE
             if (data != null) {
                 ItemStack stack = this.items.getStackInSlot(0);
                 ((ServerChunkCache) this.level.getChunkSource()).chunkMap
-                        .getPlayers(new ChunkPos(this.getPos()), false)
+                        .getPlayers(new ChunkPos(this.getBlockPos()), false)
                         .forEach(p -> {
                             Packet<?> ipacket = data.getHoldingPlayer(p).player.getAddEntityPacket();
                             if (ipacket != null)
@@ -80,13 +81,13 @@ public class DeedPedestalTileEntity extends BlockEntity implements TickingBlockE
     @Override
     public void clearRemoved() {
         super.clearRemoved();
-        DeedStorage.get(this.level).pedestals.put(this.getPos(), this);
+        DeedStorage.get(this.level).pedestals.put(this.getBlockPos(), this);
     }
 
     @Override
     public void setRemoved() {
         super.setRemoved();
-        DeedStorage.get(this.level).pedestals.remove(this.getPos());
+        DeedStorage.get(this.level).pedestals.remove(this.getBlockPos());
     }
 
     @Override
@@ -125,7 +126,7 @@ public class DeedPedestalTileEntity extends BlockEntity implements TickingBlockE
     @Override
     @OnlyIn(Dist.CLIENT)
     public AABB getRenderBoundingBox() {
-        return new AABB(this.getPos(), this.getPos().offset(1, 2, 1));
+        return new AABB(this.getBlockPos(), this.getBlockPos().offset(1, 2, 1));
     }
 
     @Override
@@ -137,6 +138,6 @@ public class DeedPedestalTileEntity extends BlockEntity implements TickingBlockE
     @Nullable
     @Override
     public AbstractContainerMenu createMenu(int id, Inventory inv, Player player) {
-        return new DeedPedestalContainer(id, player, this.getPos());
+        return new DeedPedestalContainer(id, player, this.getBlockPos());
     }
 }
