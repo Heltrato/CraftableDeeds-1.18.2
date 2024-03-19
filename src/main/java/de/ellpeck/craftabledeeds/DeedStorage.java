@@ -2,6 +2,7 @@ package de.ellpeck.craftabledeeds;
 
 import de.ellpeck.craftabledeeds.blocks.DeedPedestalTileEntity;
 import net.minecraft.SharedConstants;
+import net.minecraft.client.Minecraft;
 import net.minecraft.core.BlockPos;
 import net.minecraft.nbt.CompoundTag;
 import net.minecraft.nbt.ListTag;
@@ -31,8 +32,8 @@ public class DeedStorage extends SavedData {
     private Level world;
     private final Map<Integer, Claim> claims = new HashMap<>();
 
-    public DeedStorage(Level world) {
-        this.world = world;
+    public DeedStorage() {
+        this.setDirty();
     }
 
     public DeedStorage(CompoundTag nbt) {
@@ -68,40 +69,42 @@ public class DeedStorage extends SavedData {
 
     public void update() {
         int interval = 40;
-        if (this.world.isClientSide || this.world.getGameTime() % interval != 0)
-            return;
-        for (Claim claim : this.claims.values()) {
-            // update claim cooldown
-            if (claim.cooldown > 0) {
-                claim.cooldown -= interval;
-                if (claim.cooldown <= 0) {
-                    this.removeClaim(claim.mapId);
-                    continue;
-                }
-            }
-
-            if (claim.pedestal != null) {
-                // check if the existing pedestal still contains our deed and skip if it does
-                DeedPedestalTileEntity existing = this.pedestals.get(claim.pedestal);
-                if (existing != null) {
-                    ItemStack stack = existing.items.getStackInSlot(0);
-                    if (stack.getItem() == CraftableDeeds.FILLED_DEED.get() && MapItem.getMapId(stack) == claim.mapId)
+        if (this.world != null) {
+            if (this.world.isClientSide || this.world.getGameTime() % interval != 0)
+                return;
+            for (Claim claim : this.claims.values()) {
+                // update claim cooldown
+                if (claim.cooldown > 0) {
+                    claim.cooldown -= interval;
+                    if (claim.cooldown <= 0) {
+                        this.removeClaim(claim.mapId);
                         continue;
+                    }
                 }
-                claim.pedestal = null;
-                this.markDirtyAndSend();
-            }
 
-            // if the pedestal doesn't still contain our deed, check if there is any new pedestal
-            AABB area = claim.getArea();
-            for (DeedPedestalTileEntity tile : this.pedestals.values()) {
-                BlockPos pos = tile.getBlockPos();
-                if (area.contains(pos.getX(), pos.getY(), pos.getZ())) {
-                    ItemStack stack = tile.items.getStackInSlot(0);
-                    if (stack.getItem() == CraftableDeeds.FILLED_DEED.get() && MapItem.getMapId(stack) == claim.mapId) {
-                        claim.pedestal = pos;
-                        this.markDirtyAndSend();
-                        break;
+                if (claim.pedestal != null) {
+                    // check if the existing pedestal still contains our deed and skip if it does
+                    DeedPedestalTileEntity existing = this.pedestals.get(claim.pedestal);
+                    if (existing != null) {
+                        ItemStack stack = existing.items.getStackInSlot(0);
+                        if (stack.getItem() == CraftableDeeds.FILLED_DEED.get() && MapItem.getMapId(stack) == claim.mapId)
+                            continue;
+                    }
+                    claim.pedestal = null;
+                    this.markDirtyAndSend();
+                }
+
+                // if the pedestal doesn't still contain our deed, check if there is any new pedestal
+                AABB area = claim.getArea();
+                for (DeedPedestalTileEntity tile : this.pedestals.values()) {
+                    BlockPos pos = tile.getBlockPos();
+                    if (area.contains(pos.getX(), pos.getY(), pos.getZ())) {
+                        ItemStack stack = tile.items.getStackInSlot(0);
+                        if (stack.getItem() == CraftableDeeds.FILLED_DEED.get() && MapItem.getMapId(stack) == claim.mapId) {
+                            claim.pedestal = pos;
+                            this.markDirtyAndSend();
+                            break;
+                        }
                     }
                 }
             }
@@ -137,12 +140,12 @@ public class DeedStorage extends SavedData {
     public static DeedStorage get(Level world) {
         if (world.isClientSide) {
             if (clientStorage == null || clientStorage.world != world)
-                clientStorage = new DeedStorage(world);
+                clientStorage = new DeedStorage();
             return clientStorage;
         } else {
             ServerLevel overworld = world.getServer().overworld();
             DimensionDataStorage storage = overworld.getDataStorage();
-            return storage.computeIfAbsent(DeedStorage::new, () -> new DeedStorage(world), NAME);
+            return storage.computeIfAbsent(DeedStorage::new, DeedStorage::new, NAME);
         }
     }
 

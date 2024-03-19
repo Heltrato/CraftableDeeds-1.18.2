@@ -30,16 +30,12 @@ import net.minecraftforge.event.world.BlockEvent;
 import net.minecraftforge.event.world.ExplosionEvent;
 import net.minecraftforge.event.world.PistonEvent;
 import net.minecraftforge.eventbus.api.Event;
-import net.minecraftforge.eventbus.api.SubscribeEvent;
-import net.minecraftforge.fml.common.Mod;
 
 import java.util.List;
 import java.util.function.Function;
 
-@Mod.EventBusSubscriber
 public final class Events {
 
-    @SubscribeEvent
     public static void onPlayerJoin(EntityJoinWorldEvent event) {
         Entity entity = event.getEntity();
         if (!entity.level.isClientSide) {
@@ -62,13 +58,11 @@ public final class Events {
         }
     }
 
-    @SubscribeEvent
     public static void onWorldTick(TickEvent.WorldTickEvent event) {
         if (event.phase == TickEvent.Phase.END)
             DeedStorage.get(event.world).update();
     }
 
-    @SubscribeEvent
     public static void onBlockBreak(BlockEvent.BreakEvent event) {
         if (isDisallowedHere(event.getPlayer(), event.getPos(), s -> s.canPlaceBreak)) {
             if (isExemptConfig(CraftableDeeds.breakableBlocks.get(), String.valueOf(event.getState().getBlock())))
@@ -77,13 +71,11 @@ public final class Events {
         }
     }
 
-    @SubscribeEvent
     public static void onBlockPlace(BlockEvent.EntityPlaceEvent event) {
         if (event.getEntity() instanceof Player && isDisallowedHere(event.getEntity(), event.getPos(), s -> s.canPlaceBreak))
             event.setCanceled(true);
     }
 
-    @SubscribeEvent
     public static void onBlockInteract(PlayerInteractEvent.RightClickBlock event) {
         if (isDisallowedHere(event.getPlayer(), event.getPos(), s -> s.canOpenContainers)) {
             BlockState state = event.getWorld().getBlockState(event.getPos());
@@ -100,26 +92,22 @@ public final class Events {
             event.setUseItem(Event.Result.DENY);
     }
 
-    @SubscribeEvent
     public static void onBlockClick(PlayerInteractEvent.LeftClickBlock event) {
         if (isDisallowedHere(event.getPlayer(), event.getPos(), s -> s.canPlaceBreak))
             event.setCanceled(true);
     }
 
-    @SubscribeEvent
     public static void onEntityInteract(PlayerInteractEvent.EntityInteract event) {
         if (isDisallowedHere(event.getPlayer(), event.getPos(), s -> s.canOpenContainers))
             event.setCanceled(true);
     }
 
-    @SubscribeEvent
     public static void onEntityAttack(AttackEntityEvent event) {
         Entity target = event.getTarget();
         if (target instanceof HangingEntity && isDisallowedHere(event.getPlayer(), target.getOnPos(), s -> s.canPlaceBreak))
             event.setCanceled(true);
     }
 
-    @SubscribeEvent
     public static void onMobGriefing(EntityMobGriefingEvent event) {
         Entity entity = event.getEntity();
         // endermen picking stuff up and zombies breaking down doors should be disallowed
@@ -129,7 +117,6 @@ public final class Events {
         }
     }
 
-    @SubscribeEvent
     public static void onExplosion(ExplosionEvent.Start event) {
         Explosion explosion = event.getExplosion();
         Entity exploder = explosion.getExploder();
@@ -146,7 +133,6 @@ public final class Events {
         }
     }
 
-    @SubscribeEvent
     public static void onPiston(PistonEvent.Pre event) {
         if (event.getWorld() instanceof Level) {
             DeedStorage storage = DeedStorage.get((Level) event.getWorld());
@@ -156,7 +142,6 @@ public final class Events {
         }
     }
 
-    @SubscribeEvent
     public static void onServerStarting(RegisterCommandsEvent event) {
         DeedCommand.register(event.getDispatcher());
     }
